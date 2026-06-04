@@ -33,6 +33,13 @@ jobs:
           javac --release 8 -encoding UTF-8 -d build SteamSwitcher.java
           jar --create --file SteamSwitcher.jar --main-class SteamSwitcher -C build .
 
+      - name: Build small EXE (Launch4j)
+        shell: cmd
+        run: |
+          curl -L --retry 3 -o launch4j.zip https://downloads.sourceforge.net/project/launch4j/launch4j-3/3.50/launch4j-3.50-win32.zip
+          powershell -NoProfile -Command "Expand-Archive -Path launch4j.zip -DestinationPath . -Force"
+          launch4j\launch4jc.exe launch4j-config.xml
+
       - name: Build standalone (jpackage app-image)
         shell: cmd
         run: |
@@ -50,4 +57,5 @@ jobs:
           # "SteamSwitcher.jar", so keep that name stable.
           files: |
             SteamSwitcher.jar
+            SteamSwitcher.exe
             SteamSwitcher-standalone-windows.zip

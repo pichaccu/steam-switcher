@@ -1,5 +1,6 @@
 import javax.swing.*;
 import javax.swing.border.*;
+import javax.swing.event.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
@@ -27,7 +28,7 @@ import java.util.regex.*;
  */
 public class SteamSwitcher extends JFrame {
 
-    static final String VERSION = "1.0.0";
+    static final String VERSION = "1.0.1";
     static final String REPO    = "pichaccu/steam-switcher";
 
     // ── Colors ────────────────────────────────────────────────────────────────
@@ -52,6 +53,12 @@ public class SteamSwitcher extends JFrame {
         @Override public String toString() {
             return displayName.equals(username) ? username : displayName + "  (" + username + ")";
         }
+    }
+
+    static final class Game {
+        final String appid, name;
+        Game(String appid, String name) { this.appid = appid; this.name = name; }
+        @Override public String toString() { return name + "  (" + appid + ")"; }
     }
 
     private List<Account> accounts = new ArrayList<Account>();
@@ -441,9 +448,19 @@ public class SteamSwitcher extends JFrame {
             }
         });
 
+        // "Games…" button: pick the App ID from installed games
+        JButton gamesBtn = makeBtn(tr("pickGame"), BG_MID, BG_LIST, TEXT_LT);
+        gamesBtn.setPreferredSize(new Dimension(112, 28));
+        gamesBtn.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                Game g = showGamePicker(d);
+                if (g != null) { nameField.setText(g.name); appIdField.setText(g.appid); }
+            }
+        });
+
         row = addRow(d, c, row, tr("language"),  langBox,    null);
         row = addRow(d, c, row, tr("quickGame"), nameField,  null);
-        row = addRow(d, c, row, tr("appId"),     appIdField, null);
+        row = addRow(d, c, row, tr("appId"),     appIdField, gamesBtn);
         row = addRow(d, c, row, tr("steamPath"), steamField, browse);
 
         JLabel info = new JLabel("<html>" + tr("version") + ": " + VERSION
@@ -506,6 +523,83 @@ public class SteamSwitcher extends JFrame {
         c.gridx = 2; c.weightx = 0;
         d.add(extra != null ? extra : new JLabel(), c);
         return row + 1;
+    }
+
+    // Small picker dialog listing installed Steam games (filterable).
+    private Game showGamePicker(Component parent) {
+        final List<Game> all = VdfHelper.findInstalledGames(steamExe);
+        if (all.isEmpty()) {
+            JOptionPane.showMessageDialog(parent, tr("noGames"), tr("installedGames"),
+                JOptionPane.INFORMATION_MESSAGE);
+            return null;
+        }
+        final JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(parent),
+            tr("installedGames"), Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.getContentPane().setBackground(BG_DARK);
+        dlg.setLayout(new BorderLayout(8, 8));
+        ((JComponent) dlg.getContentPane()).setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        final DefaultListModel<Game> model = new DefaultListModel<Game>();
+        for (Game g : all) model.addElement(g);
+        final JList<Game> list = new JList<Game>(model);
+        list.setBackground(BG_LIST);
+        list.setForeground(TEXT_LT);
+        list.setSelectionBackground(ACCENT);
+        list.setSelectionForeground(Color.WHITE);
+        list.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        if (!model.isEmpty()) list.setSelectedIndex(0);
+
+        final JTextField filter = new JTextField();
+        filter.setToolTipText(tr("search"));
+        filter.getDocument().addDocumentListener(new DocumentListener() {
+            void refilter() {
+                String q = filter.getText().trim().toLowerCase();
+                model.clear();
+                for (Game g : all)
+                    if (q.isEmpty() || g.name.toLowerCase().contains(q) || g.appid.contains(q))
+                        model.addElement(g);
+                if (!model.isEmpty()) list.setSelectedIndex(0);
+            }
+            public void insertUpdate(DocumentEvent e)  { refilter(); }
+            public void removeUpdate(DocumentEvent e)  { refilter(); }
+            public void changedUpdate(DocumentEvent e) { refilter(); }
+        });
+
+        final Game[] result = new Game[1];
+        list.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && list.getSelectedValue() != null) {
+                    result[0] = list.getSelectedValue();
+                    dlg.dispose();
+                }
+            }
+        });
+
+        JButton ok     = makeBtn("OK",          ACCENT, ACCENT_HO, TEXT_LT);
+        JButton cancel = makeBtn(tr("cancel"),   BG_MID, BG_LIST,   TEXT_MUT);
+        ok.setPreferredSize(new Dimension(90, 30));
+        cancel.setPreferredSize(new Dimension(90, 30));
+        ok.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) { result[0] = list.getSelectedValue(); dlg.dispose(); }
+        });
+        cancel.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) { dlg.dispose(); }
+        });
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        south.setOpaque(false);
+        south.add(cancel); south.add(ok);
+
+        JScrollPane sp = new JScrollPane(list);
+        sp.setBorder(BorderFactory.createLineBorder(BG_MID));
+        sp.getViewport().setBackground(BG_LIST);
+
+        dlg.add(filter, BorderLayout.NORTH);
+        dlg.add(sp,     BorderLayout.CENTER);
+        dlg.add(south,  BorderLayout.SOUTH);
+        dlg.setSize(380, 440);
+        dlg.setLocationRelativeTo(parent);
+        dlg.setVisible(true);
+        return result[0];
     }
 
     private void restartUi() {
@@ -889,6 +983,54 @@ public class SteamSwitcher extends JFrame {
             return null;
         }
 
+        // Scan all Steam library folders for installed games (appmanifest_*.acf).
+        static List<Game> findInstalledGames(String steamExe) {
+            List<Game> games = new ArrayList<Game>();
+            if (steamExe == null) return games;
+            File root = new File(steamExe).getParentFile();
+            if (root == null) return games;
+
+            LinkedHashSet<String> libs = new LinkedHashSet<String>();
+            libs.add(root.getAbsolutePath());
+            for (String rel : new String[]{ "config/libraryfolders.vdf", "steamapps/libraryfolders.vdf" }) {
+                File lf = new File(root, rel);
+                if (!lf.exists()) continue;
+                try {
+                    Matcher m = Pattern.compile("\"path\"\\s+\"([^\"]+)\"").matcher(readFile(lf.getAbsolutePath()));
+                    while (m.find()) libs.add(m.group(1).replace("\\\\", "\\"));
+                } catch (Exception ignored) {}
+            }
+
+            HashSet<String> seen = new HashSet<String>();
+            for (String lib : libs) {
+                File sa = new File(lib, "steamapps");
+                File[] manifests = sa.listFiles(new FilenameFilter() {
+                    public boolean accept(File dir, String n) {
+                        return n.startsWith("appmanifest_") && n.endsWith(".acf");
+                    }
+                });
+                if (manifests == null) continue;
+                for (File mf : manifests) {
+                    try {
+                        String t = readFile(mf.getAbsolutePath());
+                        String appid = find1(t, "\"appid\"\\s+\"(\\d+)\"");
+                        String name  = find1(t, "\"name\"\\s+\"([^\"]+)\"");
+                        if (appid != null && name != null && seen.add(appid))
+                            games.add(new Game(appid, name));
+                    } catch (Exception ignored) {}
+                }
+            }
+            Collections.sort(games, new Comparator<Game>() {
+                public int compare(Game a, Game b) { return a.name.compareToIgnoreCase(b.name); }
+            });
+            return games;
+        }
+
+        private static String find1(String s, String regex) {
+            Matcher m = Pattern.compile(regex).matcher(s);
+            return m.find() ? m.group(1) : null;
+        }
+
         static List<Account> readAccounts(String vdfPath) {
             List<Account> list = new ArrayList<Account>();
             try {
@@ -1069,7 +1211,11 @@ public class SteamSwitcher extends JFrame {
                 "updDownloading","Downloading update…",
                 "updDone","Update downloaded. Restarting…",
                 "updFail","Update failed: %s",
-                "updManual","Auto-update isn't supported for this build. Please download it from GitHub.");
+                "updManual","Auto-update isn't supported for this build. Please download it from GitHub.",
+                "pickGame","Games…",
+                "installedGames","Installed games",
+                "noGames","No installed games found.",
+                "search","Search");
 
             lang("hu", "Magyar",
                 "title","Steam Fiókváltó",
@@ -1112,7 +1258,11 @@ public class SteamSwitcher extends JFrame {
                 "updDownloading","Frissítés letöltése…",
                 "updDone","Frissítés letöltve. Újraindítás…",
                 "updFail","A frissítés nem sikerült: %s",
-                "updManual","Ehhez a változathoz nincs automatikus frissítés. Töltsd le a GitHubról.");
+                "updManual","Ehhez a változathoz nincs automatikus frissítés. Töltsd le a GitHubról.",
+                "pickGame","Játékok…",
+                "installedGames","Telepített játékok",
+                "noGames","Nincs telepített játék.",
+                "search","Keresés");
 
             lang("de", "Deutsch",
                 "title","Steam-Kontowechsler",
