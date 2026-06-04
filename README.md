@@ -62,25 +62,18 @@ BUILD.bat
 Output: `SteamSwitcher.jar` (~4–5 MB, including the bundled emoji set).
 
 ### 2) Small .exe (requires installed Java)
-Needs [Launch4j](https://launch4j.sourceforge.net/) (download and unzip it into a
-`launch4j/` folder in the repo root – it is not version-controlled):
 ```bat
-launch4j\launch4jc.exe launch4j-config.xml
+BUILD-EXE.bat
 ```
-Output: `SteamSwitcher.exe` (~5 MB; the jar is embedded, uses the installed Java).
+Wraps the jar into a single `SteamSwitcher.exe` with [Launch4j](https://launch4j.sourceforge.net/)
+(downloaded automatically on first run). ~5 MB; uses the installed Java to run.
 
 ### 3) Standalone .exe (no installed Java needed)
-Uses the JDK's own `jpackage` + `jlink` (JDK 17+ recommended):
-```bash
-jlink --add-modules java.desktop --strip-debug --no-header-files --no-man-pages --compress=2 --output runtime-min
-del runtime-min\bin\jvmcicompiler.dll     :: GraalVM only: drop the ~42 MB unused JIT
-mkdir _appinput & copy SteamSwitcher.jar _appinput\
-jpackage --type app-image --name SteamSwitcher --input _appinput --main-jar SteamSwitcher.jar ^
-  --main-class SteamSwitcher --icon steam.ico --runtime-image runtime-min ^
-  --java-options "-XX:-UseJVMCICompiler" --java-options "-XX:-UseJVMCINativeLibrary" ^
-  --dest dist-standalone
+```bat
+BUILD-STANDALONE.bat
 ```
-Output: a `dist-standalone/SteamSwitcher/` folder (~50 MB, with an embedded Java runtime).
+Uses the JDK's own `jlink` + `jpackage` to produce `dist-standalone/SteamSwitcher/SteamSwitcher.exe`
+together with a trimmed embedded Java runtime (~50 MB). Move the whole `SteamSwitcher` folder together.
 
 ---
 
