@@ -224,12 +224,35 @@ def set_auto_login(username):
 
 # ── Steam le/felindítás ───────────────────────────────────────────────────────
 
-def kill_steam():
-    os.system("taskkill /F /IM steam.exe >nul 2>&1")
-    time.sleep(2)
+def is_steam_running():
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH"],
+                             capture_output=True, text=True).stdout.lower()
+        return "steam.exe" in out
+    except Exception:
+        return False
 
-def launch_steam(steam_exe):
-    subprocess.Popen([steam_exe])
+def kill_steam(steam_exe=None):
+    # Graceful shutdown first, so Steam fully exits and re-reads AutoLoginUser on
+    # the next start (fixes switching after a logout / "change account").
+    if steam_exe:
+        try:
+            subprocess.Popen([steam_exe, "-shutdown"])
+        except Exception:
+            pass
+    for _ in range(24):          # wait up to ~12 s for a clean exit
+        if not is_steam_running():
+            return
+        time.sleep(0.5)
+    os.system("taskkill /F /IM steam.exe >nul 2>&1")
+    time.sleep(1.5)
+
+def launch_steam(steam_exe, username=None):
+    # -login selects the account explicitly (works even after a logout).
+    if username:
+        subprocess.Popen([steam_exe, "-login", username])
+    else:
+        subprocess.Popen([steam_exe])
 
 # ── Főablak ───────────────────────────────────────────────────────────────────
 
@@ -363,7 +386,7 @@ class SteamSwitcher(tk.Tk):
 
         self.status_var.set("⏳  Steam leállítása...")
         self.update()
-        kill_steam()
+        kill_steam(self.steam_exe)
 
         self.status_var.set("⏳  loginusers.vdf módosítása...")
         self.update()
@@ -383,7 +406,7 @@ class SteamSwitcher(tk.Tk):
 
         self.status_var.set(f"🚀  Steam indítása – {label}...")
         self.update()
-        launch_steam(self.steam_exe)
+        launch_steam(self.steam_exe, username)
         self.status_var.set(f"✅  Bejelentkezve: {label}")
 
     # ── Fiók hozzáadása ───────────────────────────────────────────────────────

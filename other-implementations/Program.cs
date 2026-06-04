@@ -367,14 +367,15 @@ class MainForm : Form
         if (confirm != DialogResult.Yes) return;
 
         SetStatus("⏳  Steam leállítása...");
-        KillSteam();
+        KillSteam(_steamExe);
 
         SetStatus("⏳  Fájlok módosítása...");
         if (_vdfPath != null) Vdf.PatchAccount(_vdfPath, acc.Username);
         SteamRegistry.SetAutoLogin(acc.Username);
 
         SetStatus($"🚀  Steam indítása – {acc.DisplayName}...");
-        Process.Start(_steamExe);
+        // -login selects the account explicitly (works even after a logout).
+        Process.Start(_steamExe, "-login " + acc.Username);
         SetStatus($"✅  Bejelentkezve: {acc.DisplayName}");
     }
 
@@ -448,11 +449,21 @@ class MainForm : Form
 
     // ── Segédek ───────────────────────────────────────────────────────────────
 
-    static void KillSteam()
+    static void KillSteam(string? steamExe)
     {
+        // Graceful shutdown first, so Steam fully exits and re-reads AutoLoginUser
+        // on the next start (fixes switching after a logout / "change account").
+        if (steamExe != null)
+            try { Process.Start(steamExe, "-shutdown"); } catch { }
+
+        for (int i = 0; i < 24; i++)   // wait up to ~12 s for a clean exit
+        {
+            if (Process.GetProcessesByName("steam").Length == 0) return;
+            Thread.Sleep(500);
+        }
         foreach (var p in Process.GetProcessesByName("steam"))
             try { p.Kill(); } catch { }
-        Thread.Sleep(2000);
+        Thread.Sleep(1500);
     }
 
     void SetStatus(string text, Color? color = null)
