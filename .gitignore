@@ -1,0 +1,28 @@
+# ─── Build outputs (regenerable, not version-controlled) ───
+/build/
+SteamSwitcher.jar
+SteamSwitcher.exe
+/dist-standalone/
+/runtime-min/
+/_appinput/
+
+# Java compilation artifacts
+*.class
+
+# Downloaded build tool (Launch4j) - see the README "Build" section
+/launch4j/
+launch4j*.zip
+twemoji*.zip
+
+# C# build output
+other-implementations/bin/
+other-implementations/obj/
+
+# ─── Personal / sensitive data - must NEVER be committed ───
+steam_accounts.json
+*.properties
+
+# Misc
+*.log
+*.bak
+.DS_Store
