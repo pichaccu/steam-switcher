@@ -1,0 +1,53 @@
+name: Release
+
+# Publish a release when a version tag (e.g. v1.0.1) is pushed.
+# You can also run it manually from the Actions tab (workflow_dispatch).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build JAR
+        shell: cmd
+        run: |
+          if exist build rd /s /q build
+          mkdir build\resources\emoji
+          copy steam_small.png build\resources\steam.png
+          xcopy emoji build\resources\emoji /e /i /q
+          javac --release 8 -encoding UTF-8 -d build SteamSwitcher.java
+          jar --create --file SteamSwitcher.jar --main-class SteamSwitcher -C build .
+
+      - name: Build standalone (jpackage app-image)
+        shell: cmd
+        run: |
+          jlink --add-modules java.desktop --strip-debug --no-header-files --no-man-pages --compress=2 --output runtime-min
+          if exist _appinput rd /s /q _appinput
+          mkdir _appinput
+          copy SteamSwitcher.jar _appinput\
+          jpackage --type app-image --name SteamSwitcher --input _appinput --main-jar SteamSwitcher.jar --main-class SteamSwitcher --icon steam.ico --runtime-image runtime-min --dest dist
+          powershell -NoProfile -Command "Compress-Archive -Path dist\SteamSwitcher\* -DestinationPath SteamSwitcher-standalone-windows.zip -Force"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          # The updater inside the app downloads the asset named exactly
+          # "SteamSwitcher.jar", so keep that name stable.
+          files: |
+            SteamSwitcher.jar
+            SteamSwitcher-standalone-windows.zip

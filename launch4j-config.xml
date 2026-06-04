@@ -3,7 +3,7 @@
   <headerType>gui</headerType>
   <jar>SteamSwitcher.jar</jar>
   <outfile>SteamSwitcher.exe</outfile>
-  <errTitle>Steam Fiokvalto</errTitle>
+  <errTitle>Steam Account Switcher</errTitle>
   <cmdLine></cmdLine>
   <chdir>.</chdir>
   <priority>normal</priority>
@@ -14,10 +14,11 @@
   <manifest></manifest>
   <icon>steam.ico</icon>
   <jre>
-    <path>C:\Program Files\graalvm-jdk-25.0.3+9.1</path>
+    <!-- Use any installed Java found via JAVA_HOME / PATH (portable, not machine-specific). -->
+    <path>%JAVA_HOME%;%PATH%</path>
     <bundledJre64Bit>false</bundledJre64Bit>
     <bundledJreAsFallback>false</bundledJreAsFallback>
-    <minVersion></minVersion>
+    <minVersion>1.8.0</minVersion>
     <maxVersion></maxVersion>
     <jdkPreference>preferJre</jdkPreference>
     <runtimeBits>64</runtimeBits>

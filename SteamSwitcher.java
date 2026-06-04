@@ -192,12 +192,16 @@ public class SteamSwitcher extends JFrame {
         outer.setBackground(BG_DARK);
         outer.setBorder(new EmptyBorder(8, 10, 10, 10));
 
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         btnRow.setOpaque(false);
 
         JButton btnLogin    = makeBtn(tr("login"),    ACCENT, ACCENT_HO, TEXT_LT);
         JButton btnDelete   = makeBtn(tr("delete"),   BG_MID, BG_LIST,   TEXT_MUT);
         JButton btnSettings = makeBtn(tr("settings"), BG_MID, BG_LIST,   TEXT_MUT);
+        Dimension bsz = new Dimension(120, 34);   // three must fit the 420px window
+        btnLogin.setPreferredSize(bsz);
+        btnDelete.setPreferredSize(bsz);
+        btnSettings.setPreferredSize(bsz);
 
         btnLogin.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) { switchAccount(); }
@@ -397,7 +401,9 @@ public class SteamSwitcher extends JFrame {
     }
 
     // ── Settings dialog ─────────────────────────────────────────────────────────
-    private void openSettings() {
+    private void openSettings() { buildSettingsDialog().setVisible(true); }
+
+    JDialog buildSettingsDialog() {
         final JDialog d = new JDialog(this, tr("settingsTitle"), true);
         d.getContentPane().setBackground(BG_DARK);
         d.setLayout(new GridBagLayout());
@@ -420,7 +426,7 @@ public class SteamSwitcher extends JFrame {
         final JTextField steamField = new JTextField(steamExe == null ? "" : steamExe, 18);
 
         JButton browse = makeBtn(tr("browse"), BG_MID, BG_LIST, TEXT_LT);
-        browse.setPreferredSize(new Dimension(90, 28));
+        browse.setPreferredSize(new Dimension(112, 28));
         browse.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 JFileChooser fc = new JFileChooser("C:\\Program Files (x86)\\Steam");
@@ -482,9 +488,9 @@ public class SteamSwitcher extends JFrame {
         d.add(btns, c);
 
         d.pack();
-        d.setMinimumSize(new Dimension(470, d.getHeight()));
+        d.setMinimumSize(new Dimension(540, d.getHeight()));
         d.setLocationRelativeTo(this);
-        d.setVisible(true);
+        return d;
     }
 
     private int addRow(JDialog d, GridBagConstraints c, int row, String label,
@@ -492,6 +498,7 @@ public class SteamSwitcher extends JFrame {
         JLabel l = new JLabel(label);
         l.setForeground(TEXT_LT);
         l.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        l.setBorder(new EmptyBorder(0, 0, 0, 12));   // room so long labels don't clip
         c.gridx = 0; c.gridy = row; c.weightx = 0; c.gridwidth = 1;
         d.add(l, c);
         c.gridx = 1; c.weightx = 1;
