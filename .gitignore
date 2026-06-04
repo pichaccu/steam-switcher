@@ -18,6 +18,10 @@ twemoji*.zip
 other-implementations/bin/
 other-implementations/obj/
 
+# Python bytecode cache
+__pycache__/
+*.pyc
+
 # ─── Personal / sensitive data - must NEVER be committed ───
 steam_accounts.json
 *.properties
