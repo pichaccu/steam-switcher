@@ -28,7 +28,7 @@ import java.util.regex.*;
  */
 public class SteamSwitcher extends JFrame {
 
-    static final String VERSION = "1.0.1";
+    static final String VERSION = "1.0.2";
     static final String REPO    = "pichaccu/steam-switcher";
 
     // ── Colors ────────────────────────────────────────────────────────────────
@@ -741,8 +741,10 @@ public class SteamSwitcher extends JFrame {
                     File dest = new File(target.getParentFile(), target.getName() + ".new");
                     download(asset, dest);
 
-                    swapAndRestart(target, dest);   // writes a .bat, exits the app
-                    msg(parent, tr("updDone"));
+                    swapAndRestart(target, dest);   // launches a hidden helper that swaps + restarts
+                    // Show the message synchronously so the user sees it BEFORE we exit.
+                    JOptionPane.showMessageDialog(parent, tr("updDone"), tr("checkUpdate"),
+                        JOptionPane.INFORMATION_MESSAGE);
                     System.exit(0);
                 } catch (Exception ex) {
                     msg(parent, tr("updFail", String.valueOf(ex.getMessage())));
@@ -752,19 +754,32 @@ public class SteamSwitcher extends JFrame {
 
         private static void swapAndRestart(File target, File downloaded) throws IOException {
             long pid = currentPid();
-            File bat = File.createTempFile("ssw_update", ".bat");
             String t = target.getAbsolutePath();
             String n = downloaded.getAbsolutePath();
+
+            // Helper batch: wait for this app to close (capped so it can never hang
+            // forever), replace the file, relaunch it, then delete itself.
+            File bat = File.createTempFile("ssw_update", ".bat");
             StringBuilder s = new StringBuilder();
             s.append("@echo off\r\n");
+            s.append("setlocal\r\n");
+            s.append("set /a n=0\r\n");
             s.append(":wait\r\n");
-            s.append("tasklist /FI \"PID eq ").append(pid).append("\" | find \"").append(pid)
-             .append("\" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n");
+            s.append("tasklist /FI \"PID eq ").append(pid).append("\" | find \"").append(pid).append("\" >nul || goto swap\r\n");
+            s.append("set /a n+=1\r\n");
+            s.append("if %n% GEQ 60 goto swap\r\n");
+            s.append("timeout /t 1 /nobreak >nul\r\n");
+            s.append("goto wait\r\n");
+            s.append(":swap\r\n");
             s.append("move /y \"").append(n).append("\" \"").append(t).append("\" >nul\r\n");
             s.append("start \"\" \"").append(t).append("\"\r\n");
             s.append("del \"%~f0\"\r\n");
             writeText(bat, s.toString());
-            Runtime.getRuntime().exec(new String[]{ "cmd", "/c", "start", "", bat.getAbsolutePath() });
+
+            // Run the batch in a hidden window (window style 0) so no console pops up.
+            File vbs = File.createTempFile("ssw_update", ".vbs");
+            writeText(vbs, "CreateObject(\"WScript.Shell\").Run \"cmd /c \"\"" + bat.getAbsolutePath() + "\"\"\", 0, False\r\n");
+            Runtime.getRuntime().exec(new String[]{ "wscript", vbs.getAbsolutePath() });
         }
 
         private static long currentPid() {
@@ -1209,7 +1224,7 @@ public class SteamSwitcher extends JFrame {
                 "updAvail","New version %s available (you have %s). Download now?",
                 "updNone","No release has been published yet.",
                 "updDownloading","Downloading update…",
-                "updDone","Update downloaded. Restarting…",
+                "updDone","Update downloaded. The app will now close and reopen with the new version.",
                 "updFail","Update failed: %s",
                 "updManual","Auto-update isn't supported for this build. Please download it from GitHub.",
                 "pickGame","Games…",
@@ -1256,7 +1271,7 @@ public class SteamSwitcher extends JFrame {
                 "updAvail","Új verzió érhető el: %s (jelenleg: %s). Letöltöd most?",
                 "updNone","Még nincs közzétett kiadás.",
                 "updDownloading","Frissítés letöltése…",
-                "updDone","Frissítés letöltve. Újraindítás…",
+                "updDone","Frissítés letöltve. Az app most bezárul és újranyílik az új verzióval.",
                 "updFail","A frissítés nem sikerült: %s",
                 "updManual","Ehhez a változathoz nincs automatikus frissítés. Töltsd le a GitHubról.",
                 "pickGame","Játékok…",
