@@ -28,7 +28,7 @@ import java.util.regex.*;
  */
 public class SteamSwitcher extends JFrame {
 
-    static final String VERSION = "1.0.2";
+    static final String VERSION = "1.0.3";
     static final String REPO    = "pichaccu/steam-switcher";
 
     // ── Colors ────────────────────────────────────────────────────────────────
@@ -79,6 +79,12 @@ public class SteamSwitcher extends JFrame {
                                          ".steamswitcher_lastlogin.properties");
     static final java.text.SimpleDateFormat LL_FMT = new java.text.SimpleDateFormat("yyyy.MM.dd HH:mm");
 
+    // Per-account nicknames (SteamID -> nickname). When a nickname is set, only the
+    // nickname is shown in the list (the username is hidden). Clear it to reveal the name.
+    static final Map<String, String> NICKNAMES = new HashMap<String, String>();
+    static final File NICK_FILE = new File(System.getProperty("user.home"),
+                                           ".steamswitcher_nicknames.properties");
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
             public void run() { new SteamSwitcher().setVisible(true); }
@@ -107,6 +113,7 @@ public class SteamSwitcher extends JFrame {
         buildUi();
 
         loadLastLogin();
+        loadNicknames();
         String override = settings.get("steam.exe", null);
         steamExe = (override != null && new File(override).exists())
                    ? override : VdfHelper.findSteamExe();
@@ -185,6 +192,26 @@ public class SteamSwitcher extends JFrame {
         accountList.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) switchAccount();
+            }
+        });
+
+        // Right-click an account to set/clear its nickname.
+        final JPopupMenu popup = new JPopupMenu();
+        JMenuItem nickItem = new JMenuItem(tr("nickname"));
+        nickItem.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) { setNicknameForSelected(); }
+        });
+        popup.add(nickItem);
+        accountList.addMouseListener(new MouseAdapter() {
+            public void mousePressed(MouseEvent e)  { maybePopup(e); }
+            public void mouseReleased(MouseEvent e) { maybePopup(e); }
+            private void maybePopup(MouseEvent e) {
+                if (!e.isPopupTrigger()) return;
+                int idx = accountList.locationToIndex(e.getPoint());
+                if (idx >= 0) {
+                    accountList.setSelectedIndex(idx);
+                    popup.show(accountList, e.getX(), e.getY());
+                }
             }
         });
 
@@ -272,7 +299,9 @@ public class SteamSwitcher extends JFrame {
 
         public Component getListCellRendererComponent(JList<? extends Account> list,
                 Account value, int index, boolean isSelected, boolean cellHasFocus) {
-            segs = EmojiText.parse(value.toString());
+            String nick = NICKNAMES.get(value.steamId());
+            String shown = (nick != null && !nick.trim().isEmpty()) ? nick : value.toString();
+            segs = EmojiText.parse(shown);
             Long ts = LAST_LOGIN.get(value.steamId());
             lastLogin = (ts != null) ? LL_FMT.format(new Date(ts)) : "";
             selected = isSelected;
@@ -686,6 +715,47 @@ public class SteamSwitcher extends JFrame {
         try {
             out = new FileOutputStream(LL_FILE);
             p.store(out, "SteamSwitcher - last login (epoch ms)");
+        } catch (Exception ignored) {
+        } finally { if (out != null) try { out.close(); } catch (Exception ignored) {} }
+    }
+
+    // ── Nicknames ────────────────────────────────────────────────────────────────
+    private void setNicknameForSelected() {
+        int idx = accountList.getSelectedIndex();
+        if (idx < 0) return;
+        Account acc = accounts.get(idx);
+        String cur = NICKNAMES.get(acc.steamId());
+        Object val = JOptionPane.showInputDialog(this, tr("nicknamePrompt"), tr("nickname"),
+            JOptionPane.PLAIN_MESSAGE, null, null, cur != null ? cur : "");
+        if (val == null) return;                 // cancelled
+        String nick = val.toString().trim();
+        if (nick.isEmpty()) NICKNAMES.remove(acc.steamId());   // cleared -> real name returns
+        else                NICKNAMES.put(acc.steamId(), nick);
+        saveNicknames();
+        accountList.repaint();
+    }
+
+    private void loadNicknames() {
+        NICKNAMES.clear();
+        if (!NICK_FILE.exists()) return;
+        Properties p = new Properties();
+        InputStream in = null;
+        try {
+            in = new FileInputStream(NICK_FILE);
+            p.load(in);
+            for (String k : p.stringPropertyNames()) NICKNAMES.put(k, p.getProperty(k));
+        } catch (Exception ignored) {
+        } finally { if (in != null) try { in.close(); } catch (Exception ignored) {} }
+    }
+
+    private void saveNicknames() {
+        Properties p = new Properties();
+        for (Map.Entry<String, String> e : NICKNAMES.entrySet())
+            p.setProperty(e.getKey(), e.getValue());
+        OutputStream out = null;
+        try {
+            out = new FileOutputStream(NICK_FILE);
+            p.store(out, "SteamSwitcher - per-account nicknames");
         } catch (Exception ignored) {
         } finally { if (out != null) try { out.close(); } catch (Exception ignored) {} }
     }
@@ -1230,7 +1300,9 @@ public class SteamSwitcher extends JFrame {
                 "pickGame","Games…",
                 "installedGames","Installed games",
                 "noGames","No installed games found.",
-                "search","Search");
+                "search","Search",
+                "nickname","Set nickname…",
+                "nicknamePrompt","Nickname for this account (leave empty to clear):");
 
             lang("hu", "Magyar",
                 "title","Steam Fiókváltó",
@@ -1277,7 +1349,9 @@ public class SteamSwitcher extends JFrame {
                 "pickGame","Játékok…",
                 "installedGames","Telepített játékok",
                 "noGames","Nincs telepített játék.",
-                "search","Keresés");
+                "search","Keresés",
+                "nickname","Becenév beállítása…",
+                "nicknamePrompt","Becenév ehhez a fiókhoz (üresen hagyva törli):");
 
             lang("de", "Deutsch",
                 "title","Steam-Kontowechsler",

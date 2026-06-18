@@ -12,6 +12,17 @@ built-in **updater**.
 
 ---
 
+## 📸 Screenshots
+
+| Main window | Settings |
+|---|---|
+| ![Main window](screenshots/main.png) | ![Settings](screenshots/settings.png) |
+
+*(Account names above are placeholders — no real data. "🎮 Main" and "Smurf 🔥" show
+the per-account **nickname** feature, which hides the underlying username.)*
+
+---
+
 ## ✨ Features
 
 - Lists Steam accounts from the local `loginusers.vdf` (passwords are **never** handled).
@@ -21,6 +32,8 @@ built-in **updater**.
 - **Colored emoji** in account names (bundled [Twemoji](#-license--attribution) images,
   because Swing on its own would only draw empty boxes).
 - **Last login** timestamp stored per account (local cache file).
+- **Per-account nicknames** (right-click an account): when a nickname is set, only the
+  nickname is shown and the real username is hidden; clear it to reveal the name again.
 - **Multi-language UI** – defaults to the Windows language, falls back to English.
   Bundled languages: English, Hungarian, German, Spanish, French, Italian,
   Portuguese, Russian, Polish, Chinese, Japanese.
