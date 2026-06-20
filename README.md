@@ -19,7 +19,8 @@ built-in **updater**.
 | ![Main window](screenshots/main.png) | ![Settings](screenshots/settings.png) |
 
 *(Account names above are placeholders — no real data. "🎮 Main" and "Smurf 🔥" show
-the per-account **nickname** feature, which hides the underlying username.)*
+the per-account **nickname** feature, which hides the underlying username. The
+green-highlighted row is the **currently logged-in** account.)*
 
 ---
 
@@ -34,6 +35,7 @@ the per-account **nickname** feature, which hides the underlying username.)*
 - **Last login** timestamp stored per account (local cache file).
 - **Per-account nicknames** (right-click an account): when a nickname is set, only the
   nickname is shown and the real username is hidden; clear it to reveal the name again.
+- The **currently logged-in account** is highlighted green (a green left bar + green name).
 - **Multi-language UI** – defaults to the Windows language, falls back to English.
   Bundled languages: English, Hungarian, German, Spanish, French, Italian,
   Portuguese, Russian, Polish, Chinese, Japanese.

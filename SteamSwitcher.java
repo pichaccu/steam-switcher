@@ -28,7 +28,7 @@ import java.util.regex.*;
  */
 public class SteamSwitcher extends JFrame {
 
-    static final String VERSION = "1.0.4";
+    static final String VERSION = "1.0.5";
     static final String REPO    = "pichaccu/steam-switcher";
 
     // ── Colors ────────────────────────────────────────────────────────────────
@@ -84,6 +84,9 @@ public class SteamSwitcher extends JFrame {
     static final Map<String, String> NICKNAMES = new HashMap<String, String>();
     static final File NICK_FILE = new File(System.getProperty("user.home"),
                                            ".steamswitcher_nicknames.properties");
+
+    // Username currently set to auto-login (the "active" account) – highlighted green.
+    static String ACTIVE_USER;
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
@@ -293,6 +296,7 @@ public class SteamSwitcher extends JFrame {
     static class AccountCellRenderer extends JComponent implements ListCellRenderer<Account> {
         private List<Object> segs = Collections.emptyList();
         private boolean selected;
+        private boolean active;
         private String lastLogin = "";
         private final Font font  = new Font("Segoe UI", Font.PLAIN, 12);
         private final Font small = new Font("Segoe UI", Font.PLAIN, 9);
@@ -304,6 +308,8 @@ public class SteamSwitcher extends JFrame {
             segs = EmojiText.parse(shown);
             Long ts = LAST_LOGIN.get(value.steamId());
             lastLogin = (ts != null) ? LL_FMT.format(new Date(ts)) : "";
+            active = value.username() != null && ACTIVE_USER != null
+                     && value.username().equalsIgnoreCase(ACTIVE_USER);
             selected = isSelected;
             setOpaque(true);
             return this;
@@ -315,6 +321,10 @@ public class SteamSwitcher extends JFrame {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,     RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g.setColor(selected ? ACCENT : BG_LIST);
             g.fillRect(0, 0, getWidth(), getHeight());
+            if (active) {                       // green left bar marks the active account
+                g.setColor(TEXT_OK);
+                g.fillRect(0, 0, 3, getHeight());
+            }
 
             int rightLimit = getWidth() - 10;
             if (!lastLogin.isEmpty()) {
@@ -332,7 +342,7 @@ public class SteamSwitcher extends JFrame {
             int es = fm.getAscent();
             int baseline = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
             int x = 8;
-            g.setColor(TEXT_LT);
+            g.setColor(active ? TEXT_OK : TEXT_LT);
             for (Object seg : segs) {
                 if (seg instanceof Image) {
                     if (x + es > rightLimit) break;
@@ -359,7 +369,17 @@ public class SteamSwitcher extends JFrame {
         accounts = vdfPath != null ? VdfHelper.readAccounts(vdfPath) : new ArrayList<Account>();
         listModel.clear();
         for (Account a : accounts) listModel.addElement(a);
+        refreshActive();
         setStatus(tr("loaded", String.valueOf(accounts.size())), TEXT_MUT);
+    }
+
+    // Which account is currently set to auto-login (registry), falling back to the
+    // most-recent one in the vdf. Used to highlight the active account green.
+    private void refreshActive() {
+        String u = RegistryHelper.readAutoLoginUser();
+        if (u == null || u.trim().isEmpty())
+            u = (vdfPath != null) ? VdfHelper.findMostRecent(vdfPath) : null;
+        ACTIVE_USER = u;
     }
 
     private void switchAccount() {
@@ -397,6 +417,7 @@ public class SteamSwitcher extends JFrame {
         }
         LAST_LOGIN.put(acc.steamId(), System.currentTimeMillis());
         saveLastLogin();
+        ACTIVE_USER = acc.username();      // mark the just-switched account active (green)
         accountList.repaint();
         setStatus(tr("loggedIn", acc.displayName()), TEXT_OK);
     }
@@ -1132,6 +1153,19 @@ public class SteamSwitcher extends JFrame {
             return list;
         }
 
+        // Account marked MostRecent=1 in the vdf (fallback for the "active" highlight).
+        static String findMostRecent(String vdfPath) {
+            try {
+                String text = readFile(vdfPath);
+                Matcher m = Pattern.compile("\"(?:\\d{10,})\"\\s*\\{([^{}]*)\\}", Pattern.DOTALL).matcher(text);
+                while (m.find()) {
+                    String body = m.group(1);
+                    if ("1".equals(extract(body, "MostRecent"))) return extract(body, "AccountName");
+                }
+            } catch (Exception ignored) {}
+            return null;
+        }
+
         static void patchAccount(String vdfPath, String target) {
             try {
                 String text = readFile(vdfPath);
@@ -1188,6 +1222,9 @@ public class SteamSwitcher extends JFrame {
             String v = readReg("HKCU\\SOFTWARE\\Valve\\Steam", "SteamPath");
             if (v == null) v = readReg("HKLM\\SOFTWARE\\Valve\\Steam", "InstallPath");
             return v;
+        }
+        static String readAutoLoginUser() {
+            return readReg("HKCU\\SOFTWARE\\Valve\\Steam", "AutoLoginUser");
         }
         static void setAutoLogin(String username) {
             writeReg("HKCU\\SOFTWARE\\Valve\\Steam", "AutoLoginUser",    "REG_SZ",    username);
